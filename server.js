@@ -50,7 +50,4 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// 5. 后厨正式开门营业！
-app.listen(port, () => {
-    console.log(`山海经后厨已开张，正在 http://localhost:${port} 等待点单`);
-});
+module.exports = app;
