@@ -9,7 +9,7 @@ const app = express();
 const port = 3000; // 我们的后厨开在3000号门
 
 // 3. “总管”定下规矩
-app.use(cors()); // 保安上岗，允许所有前台访问
+app.use(cors({ origin: '*' })); // 保安上岗，允许所有前台访问
 app.use(express.json()); // 允许点单时使用JSON这种通用语言
 
 // 4. 定义一道核心菜：“AI聊天”
@@ -50,4 +50,4 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-module.exports = app;
+module.exports = app; 
