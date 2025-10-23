@@ -1,40 +1,47 @@
-// 1. 导入所需的模块
+// 文件路径: shan-hai-backend/netlify/functions/api.js
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const serverless = require('serverless-http'); // 引入serverless-http
 
-// 2. 创建 Express 应用
 const app = express();
-const port = process.env.PORT || 9000;  // 云函数默认使用 9000 端口
+const router = express.Router(); // 创建一个Router
 
-// 3. 配置 CORS（允许跨域请求）
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-// 4. 允许解析 JSON 格式的请求体
 app.use(express.json());
 
-// 5. 主要的 API 接口 - 处理 AI 聊天请求
-app.post('/api/chat', async (req, res) => {
-    try {
-        console.log("后厨收到了一个点单！");
-        
-        // 从请求体中提取参数
-        const { systemPrompt, model, url, key } = req.body;
+// 修改后的 shan-hai-backend/netlify/functions/api.js
 
-        // 验证必需参数
-        if (!systemPrompt || !model || !url || !key) {
+router.post('/chat', async (req, res) => {
+    try {
+        console.log("Netlify Function 收到了一个点单！");
+
+        // 1. 从前端获取的参数中不再包含 key
+        const { systemPrompt, model, url } = req.body;
+
+        // 2. 从 Netlify 的环境变量中安全地获取 API Key
+        const apiKey = process.env.LLM_API_KEY;
+
+        // 3. 检查环境变量是否成功加载
+        if (!apiKey) {
+            return res.status(500).json({
+                error: '服务器配置错误',
+                message: '后厨的保险箱是空的 (LLM_API_KEY not found on server)'
+            });
+        }
+        
+        if (!systemPrompt || !model || !url) {
             return res.status(400).json({ 
                 error: '缺少必需参数',
-                message: '请确保提供了 systemPrompt, model, url, key' 
+                message: '请确保提供了 systemPrompt, model, url' 
             });
         }
 
-        // 向 AI 服务发送请求
         const response = await axios.post(
             `${url.replace(/\/$/, '')}/v1/chat/completions`,
             {
@@ -44,20 +51,17 @@ app.post('/api/chat', async (req, res) => {
             },
             {
                 headers: {
-                    'Authorization': `Bearer ${key}`,
+                    // 4. 使用从环境变量中获取的、安全的 apiKey
+                    'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 30000  // 30秒超时
+                timeout: 30000
             }
         );
-
         console.log("采购成功，准备上菜！");
         res.json(response.data);
-
     } catch (error) {
         console.error('后厨出错了:', error.response ? error.response.data : error.message);
-        
-        // 返回详细的错误信息
         res.status(500).json({ 
             error: '后厨出错了',
             message: error.response?.data?.error?.message || error.message,
@@ -66,8 +70,8 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// 6. 健康检查接口 - 用于测试服务是否正常运行
-app.get('/', (req, res) => {
+// 健康检查接口
+router.get('/', (req, res) => {
     res.json({ 
         status: 'ok', 
         message: '山海经后端服务运行中',
@@ -75,13 +79,8 @@ app.get('/', (req, res) => {
     });
 });
 
-// 7. 兼容云函数和本地环境
-if (process.env.TENCENTCLOUD_RUNENV === 'SCF') {
-    // 在腾讯云函数环境中，导出 app 对象
-    module.exports = app;
-} else {
-    // 在本地环境中，启动服务器
-    app.listen(port, () => {
-        console.log(`服务运行在端口 ${port}`);
-    });
-}
+// 将router挂载到 /api 路径
+app.use('/api/', router);
+
+// 导出Netlify要用的handler
+module.exports.handler = serverless(app);
